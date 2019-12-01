@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">MemoryCleaner</string>
+    <string name="title_activity_main_scrolling">Memory Cleaner v0.9</string>
+    <string name="large_text">
+        "Click on play for memory analysis!\n\n"
+    </string>
+    <string name="action_settings">Quit</string>
+    <string name="report_label">Memory report:</string>
+    <string name="days_picker_label">Days to keep:</string>
+</resources>
