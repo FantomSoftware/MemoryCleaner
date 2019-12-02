@@ -25,7 +25,6 @@ public class MainScrollingActivity extends AppCompatActivity {
     protected boolean hasPermissions() {
         boolean perm = true;
         for (String sp: PERMISSIONS) {
-            //if (ContextCompat.checkSelfPermission(MainScrollingActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             if (ContextCompat.checkSelfPermission(MainScrollingActivity.this, sp) != PackageManager.PERMISSION_GRANTED) {
                 perm = false;
             }
@@ -54,18 +53,18 @@ public class MainScrollingActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main_scrolling);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        Toolbar toolbar = (Toolbar)findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
         ActivityCompat.requestPermissions(MainScrollingActivity.this, PERMISSIONS, PERMISSION_ALL);
 
-        NumberPicker daysPicker = (NumberPicker) findViewById(R.id.daysNumberPicker);
+        NumberPicker daysPicker = (NumberPicker)findViewById(R.id.daysNumberPicker);
         daysPicker.setMaxValue(120);
         daysPicker.setMinValue(0);
         daysPicker.setWrapSelectorWheel(false);
         daysPicker.setValue(30);
 
-        FloatingActionButton fapprove = (FloatingActionButton) findViewById(R.id.fapprove);
+        FloatingActionButton fapprove = (FloatingActionButton)findViewById(R.id.fapprove);
         fapprove.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -74,8 +73,8 @@ public class MainScrollingActivity extends AppCompatActivity {
                             @Override
                             public void onClick(View view) {
                                 // Start to clean (moving, deleting, ...) --- let the last user approve before???
-                                FloatingActionButton fapprove = (FloatingActionButton) findViewById(R.id.fapprove);
-                                NumberPicker daysPicker = (NumberPicker) findViewById(R.id.daysNumberPicker);
+                                FloatingActionButton fapprove = (FloatingActionButton)findViewById(R.id.fapprove);
+                                NumberPicker daysPicker = (NumberPicker)findViewById(R.id.daysNumberPicker);
                                 int days = daysPicker.getValue();
                                 fapprove.setVisibility(View.GONE);
                                 new AsyncMoveTask().execute(days);
@@ -85,13 +84,13 @@ public class MainScrollingActivity extends AppCompatActivity {
             }
         }); // fapprove.setOnClickListener
 
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
+        FloatingActionButton fab = (FloatingActionButton)findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                TextView scrollingTV = (TextView) findViewById(R.id.mainScrollingTextview);
-                NumberPicker daysPicker = (NumberPicker) findViewById(R.id.daysNumberPicker);
-                FloatingActionButton fapprove = (FloatingActionButton) findViewById(R.id.fapprove);
+                TextView scrollingTV = (TextView)findViewById(R.id.mainScrollingTextview);
+                NumberPicker daysPicker = (NumberPicker)findViewById(R.id.daysNumberPicker);
+                FloatingActionButton fapprove = (FloatingActionButton)findViewById(R.id.fapprove);
                 String text = "";
                 int days = daysPicker.getValue();
                 fapprove.setVisibility(View.GONE);
@@ -101,10 +100,6 @@ public class MainScrollingActivity extends AppCompatActivity {
                     scrollingTV.setText("Some of permissions were denied!");
                     return;
                 }
-
-                //StorageManager storageManager = (StorageManager) getSystemService(Context.STORAGE_SERVICE);
-                //startActivityForResult(storageManager.getPrimaryStorageVolume().createAccessIntent("aaa");
-                //startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQUEST_CODE__DIRECTORTY_PERMISSION);
 
                 scrollingTV.setText("Analysing...");
 
@@ -122,8 +117,8 @@ public class MainScrollingActivity extends AppCompatActivity {
         }
 
         @Override protected void onPostExecute(String result) {
-            FloatingActionButton fapprove = (FloatingActionButton) findViewById(R.id.fapprove);
-            TextView scrollingTV = (TextView) findViewById(R.id.mainScrollingTextview);
+            FloatingActionButton fapprove = (FloatingActionButton)findViewById(R.id.fapprove);
+            TextView scrollingTV = (TextView)findViewById(R.id.mainScrollingTextview);
             scrollingTV.setText(result);
             if (!result.startsWith("ERROR:")) {
                 if (ife.getLastCountToClean()>0)
@@ -139,8 +134,8 @@ public class MainScrollingActivity extends AppCompatActivity {
         }
 
         @Override protected void onPostExecute(String result) {
-            FloatingActionButton fapprove = (FloatingActionButton) findViewById(R.id.fapprove);
-            TextView scrollingTV = (TextView) findViewById(R.id.mainScrollingTextview);
+            FloatingActionButton fapprove = (FloatingActionButton)findViewById(R.id.fapprove);
+            TextView scrollingTV = (TextView)findViewById(R.id.mainScrollingTextview);
             scrollingTV.setText(result);
         }
     } // AsyncMoveTask
@@ -148,3 +143,4 @@ public class MainScrollingActivity extends AppCompatActivity {
 
 // Poznamky:
 // https://stackoverflow.com/questions/45898179/edittext-not-set-after-device-rotation
+// https://zapisky.info/idea-qwertz-klavesnice-altgr-a-hranate-zavorky/

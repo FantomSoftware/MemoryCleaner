@@ -50,9 +50,8 @@ public class InternalFileEnumerator {
         FileChannel outChannel = null;
         boolean result = false;
         try {
-            // TODO test na to, zda souboru uz neexistuje - kdyz existuje, musis mit jine jmeno!
-            // TODO pokud neexistuje, musis vytvorit i slozku
-            // TODO zkusit nastavit zpatky spravny puvodni cas souboru?
+            // TODO set the origin last usage date on the new file?
+            // TODO add the delete action
             Log.d("safeMoveFile", src.getAbsolutePath() +" > "+ dst.getAbsolutePath());
             if (!dst.exists()) {
                 boolean b = dst.mkdirs();
@@ -175,6 +174,7 @@ public class InternalFileEnumerator {
                     lengthToMove += len;
                     countToClean++;
                     if (bMove) {
+                        // TODO must generate the proper save directory path!
                         if (!safeMoveFile(file, new File(SDPATH+"/WhatsApp"))) {
                             ret = ret + "- ERROR COPY " + file.getName() + "\n";
                         } else {
@@ -255,7 +255,7 @@ public class InternalFileEnumerator {
             return "ERROR: SD-CARD NOT FOUND OR READ ONLY!";
         } else {
             SDPATH = sdPath;
-            // TODO ZMENIT NA SD CARD!
+            // TODO for debugging use the internal DOCUMENTS directory, for release use SDPATH
             //SDPATH = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS).getAbsolutePath();
         }
 
@@ -279,7 +279,6 @@ public class InternalFileEnumerator {
             }
         }
 
-        // TODO ZOHLEDNI COUNT/LENGHT TO CLEAN!
         sReturn = sReturn + sizeFormat(LENGTH_TO_CLEAN) + " / " + COUNT_TO_CLEAN + " items total \n";
         sReturn = sReturn + tempReturn;
 
