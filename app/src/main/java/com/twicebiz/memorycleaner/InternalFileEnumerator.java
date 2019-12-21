@@ -165,7 +165,7 @@ public class InternalFileEnumerator {
         if (bMove && (SDPATH==null || SDPATH.length()==0)) return "ERROR SD-CARD PATH";
 
         for (File file : path.listFiles()) {
-            if (file.isFile()) {
+            if (file.isFile() && !skipFile(file)) {
                 long len = file.length();
                 length += len;
                 count++;
@@ -175,13 +175,14 @@ public class InternalFileEnumerator {
                     countToClean++;
                     if (bMove) {
                         // TODO must generate the proper save directory path!
-                        if (!safeMoveFile(file, new File(SDPATH+"/WhatsApp"))) {
+                        if (!safeMoveFile(file, new File(SDPATH+"/NEW_SD"))) {
                             ret = ret + "- ERROR COPY " + file.getName() + "\n";
                         } else {
                             lengthToMove = lengthToMove - len;
                             countToClean--;
                         }
                     }
+                    //ret = ret + file.getName() + ": " + sizeFormat(len) + "\n";
                 }
                 //ret = ret + file.getName() + ": " + sizeFormat(len) + " older: " + older + "\n";
             }
@@ -193,8 +194,15 @@ public class InternalFileEnumerator {
         LENGTH_TO_CLEAN += lengthToMove;
         COUNT_TO_CLEAN += countToClean;
 
-        return ret + sizeFormat(lengthToMove) + " / " + sizeFormat(length) + " (" + countToClean + "/" + count + ")";
+        return " " + sizeFormat(lengthToMove) + " / " + sizeFormat(length) + " (" + countToClean + "/" + count + ")" + "\n" + ret;
     } // s_scanDirectoryFiles
+
+    private boolean skipFile(File file) {
+        if (file.getName().startsWith(".")) return true;
+        if (file.length() == 0) return true;
+
+        return false;
+    } // skipFile
 
     private String sizeFormat(long size) {
          long kb = size / 1024; // Get size and convert bytes into Kb.
@@ -232,7 +240,6 @@ public class InternalFileEnumerator {
      * Interni uloziste/Pictures (pozor, obsahuje podslozky, co nech byt)
      * Interni uloziste/DCIM/Camera
      *
-     * Presunout jen nejstarsi veci, nechat par poslednich tydnu Marti na miste!
      * Vsechny WhatsApp veci se presouvaji do SDKarta/WhatsApp
      * Vsechny Pictures se presouvaji do SDKarta/Pictures
      * Vsechny Fotky se presouvaji do SDKarta/DCIM/Camera

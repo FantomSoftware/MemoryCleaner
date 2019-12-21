@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">MemoryCleaner</string>
-    <string name="title_activity_main_scrolling">Memory Cleaner v0.9</string>
+    <string name="title_activity_main_scrolling">MyMemory 0.92</string>
     <string name="large_text">
         "Click on play for memory analysis!\n\n"
     </string>
