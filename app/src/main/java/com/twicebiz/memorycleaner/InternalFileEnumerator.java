@@ -58,11 +58,12 @@ public class InternalFileEnumerator {
                 if (!b) Log.d("safeMoveFile", "Cannot create a dir!!! " + dst.getAbsolutePath());
             }
             File dstFile = new File(getUniqueFile(dst.getAbsolutePath()+"/"+src.getName()));
-            dstFile.createNewFile();
-            inChannel = new FileInputStream(src).getChannel();
-            outChannel = new FileOutputStream(dstFile).getChannel();
-            inChannel.transferTo(0, inChannel.size(), outChannel);
-            result = true;
+            if (dstFile.createNewFile()) {
+                inChannel = new FileInputStream(src).getChannel();
+                outChannel = new FileOutputStream(dstFile).getChannel();
+                inChannel.transferTo(0, inChannel.size(), outChannel);
+                result = true;
+            }
         }
         catch (Exception e) {
             result = false;
@@ -108,10 +109,7 @@ public class InternalFileEnumerator {
     }
 
     /**
-     * Get external sd card path using reflection
-     * @param mContext
-     * @param is_removable is external storage removable
-     * @return
+     * Get external sd card path using reflection - manage by is_removable variable if is external storage removable = SD card
      */
     private static String getExternalStoragePath(Context mContext, boolean is_removable) {
 
@@ -139,6 +137,8 @@ public class InternalFileEnumerator {
         } catch (NoSuchMethodException e) {
             e.printStackTrace();
         } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (NullPointerException e) {
             e.printStackTrace();
         }
         return null;

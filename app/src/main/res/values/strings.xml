@@ -7,4 +7,10 @@
     <string name="action_settings">Quit</string>
     <string name="report_label">Memory report:</string>
     <string name="days_picker_label">Days to keep:</string>
+    <string name="Snack_approve_label">MOVE FILES?</string>
+    <string name="Snack_approve_button">DO IT!</string>
+    <string name="Permissions_granted">Permission was granted</string>
+    <string name="Permissions_denied">Permissions denied!</string>
+    <string name="Permissions_denied_explain">Some of permissions were denied!</string>
+    <string name="Analysing">Analysing...</string>
 </resources>

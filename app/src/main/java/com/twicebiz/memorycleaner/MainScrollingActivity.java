@@ -11,6 +11,7 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.View;
 import android.widget.NumberPicker;
 import android.widget.TextView;
@@ -40,11 +41,14 @@ public class MainScrollingActivity extends AppCompatActivity {
                 // If request is cancelled, the result arrays are empty.
                 if (grantResults.length > 0
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    Toast.makeText(getApplicationContext(), "permission was granted", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getApplicationContext(), R.string.Permissions_granted, Toast.LENGTH_SHORT).show();
                 } else {
-                    Toast.makeText(getApplicationContext(), "Permission denied", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getApplicationContext(), R.string.Permissions_denied, Toast.LENGTH_SHORT).show();
                 }
                 return;
+            }
+            default: {
+                Log.d("PERMISSIONS", "Request code for onRequestPermissionsResult is "+ requestCode);
             }
         }
     } // onRequestPermissionsResult
@@ -68,7 +72,7 @@ public class MainScrollingActivity extends AppCompatActivity {
         fapprove.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Snackbar.make(view, "MOVE FILES?", Snackbar.LENGTH_LONG).setAction("DO IT!",
+                Snackbar.make(view, R.string.Snack_approve_label, Snackbar.LENGTH_LONG).setAction(R.string.Snack_approve_button,
                         new View.OnClickListener() {
                             @Override
                             public void onClick(View view) {
@@ -96,12 +100,12 @@ public class MainScrollingActivity extends AppCompatActivity {
                 fapprove.setVisibility(View.GONE);
 
                 if (!hasPermissions()) {
-                    Toast.makeText(getApplicationContext(), "Permissions denied!", Toast.LENGTH_SHORT).show();
-                    scrollingTV.setText("Some of permissions were denied!");
+                    Toast.makeText(getApplicationContext(), R.string.Permissions_denied, Toast.LENGTH_SHORT).show();
+                    scrollingTV.setText(R.string.Permissions_denied_explain);
                     return;
                 }
 
-                scrollingTV.setText("Analysing...");
+                scrollingTV.setText(R.string.Analysing);
 
                 new AsyncAnalyseTask().execute(days);
             }
