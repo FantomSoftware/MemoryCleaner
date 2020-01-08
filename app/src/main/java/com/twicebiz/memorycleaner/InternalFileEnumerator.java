@@ -14,24 +14,38 @@ import android.os.StatFs;
 import android.util.Log;
 
 import java.nio.channels.FileChannel;
+import java.util.ArrayList;
 import java.util.Date;
 
 public class InternalFileEnumerator {
     private long LENGTH_TO_CLEAN = 0;
     private long COUNT_TO_CLEAN = 0;
-    private String SDPATH = "";
+    public String SDPATH = "";
 
     public long getLastCountToClean() {
         return COUNT_TO_CLEAN;
     }
 
-    private String[] cleaningPaths = {
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath() + "/Camera/",
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).getAbsolutePath(),
-            Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Images",
-            Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Video",
-            Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/WhatsApp Images",
-            Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/WhatsApp Video"
+    public class FileQueue {
+        public String sDestPath;
+        ArrayList<File> fileList = new ArrayList<File>();
+    }
+
+    public ArrayList<FileQueue> fileResult = new ArrayList<FileQueue>();
+
+    private class SourceDestPath {
+        String destFolder;
+        String sourcePath;
+        SourceDestPath(String d, String s) {destFolder = d; sourcePath = s;}
+    }
+
+    private SourceDestPath[] cleaningPaths = {
+        new SourceDestPath("Camera", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath() + "/Camera/"),
+        new SourceDestPath("Pictures", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).getAbsolutePath()+""),
+        new SourceDestPath("WhatsApp", Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Images"),
+        new SourceDestPath("WhatsApp", Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Video"),
+        new SourceDestPath("WhatsApp", Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/WhatsApp Images"),
+        new SourceDestPath("WhatsApp", Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/WhatsApp Video")
     };
     private String[] warningPaths = {
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath(),
@@ -111,7 +125,7 @@ public class InternalFileEnumerator {
     /**
      * Get external sd card path using reflection - manage by is_removable variable if is external storage removable = SD card
      */
-    private static String getExternalStoragePath(Context mContext, boolean is_removable) {
+    public static String getExternalStoragePath(Context mContext, boolean is_removable) {
 
         StorageManager mStorageManager = (StorageManager) mContext.getSystemService(Context.STORAGE_SERVICE);
         Class<?> storageVolumeClazz = null;
@@ -152,7 +166,7 @@ public class InternalFileEnumerator {
         }
     } // isMediaAvailable
 
-    private String s_scanDirectoryFiles(File path, int days, boolean bMove) {
+    private String s_scanDirectoryFiles(File path, String dest, int days, boolean bMove) {
         long length = 0;
         long lengthToMove = 0;
         int countToClean = 0;
@@ -164,6 +178,9 @@ public class InternalFileEnumerator {
         if (path.listFiles() == null) return "";
         if (bMove && (SDPATH==null || SDPATH.length()==0)) return "ERROR SD-CARD PATH";
 
+        FileQueue fq = new FileQueue();
+        fq.sDestPath = dest;
+
         for (File file : path.listFiles()) {
             if (file.isFile() && !skipFile(file)) {
                 long len = file.length();
@@ -173,9 +190,10 @@ public class InternalFileEnumerator {
                 if (older) {
                     lengthToMove += len;
                     countToClean++;
+                    fq.fileList.add(file);
                     if (bMove) {
                         // TODO must generate the proper save directory path!
-                        if (!safeMoveFile(file, new File(SDPATH+"/NEW_SD"))) {
+                        if (!safeMoveFile(file, new File(SDPATH+dest))) {
                             ret = ret + "- ERROR COPY " + file.getName() + "\n";
                         } else {
                             lengthToMove = lengthToMove - len;
@@ -190,6 +208,8 @@ public class InternalFileEnumerator {
         }
 
         if (count == 0) return "empty";
+
+        fileResult.add(fq);
 
         LENGTH_TO_CLEAN += lengthToMove;
         COUNT_TO_CLEAN += countToClean;
@@ -253,6 +273,8 @@ public class InternalFileEnumerator {
         LENGTH_TO_CLEAN = 0;
         COUNT_TO_CLEAN = 0;
 
+        fileResult.clear();
+
         if (!isMediaAvailable()) {
             return "ERROR: ACCESS MEMORY ERROR!";
         }
@@ -274,15 +296,15 @@ public class InternalFileEnumerator {
         if (bMove) sReturn = sReturn + "|| Cleaned: ";
         else sReturn = sReturn + "|| Found to clean: ";
         String tempReturn = "";
-        for (String path: cleaningPaths) {
-            File dirToClean = new File(path);
+        for (SourceDestPath sd: cleaningPaths) {
+            File dirToClean = new File(sd.sourcePath);
             if (dirToClean == null) continue;
             if (!dirToClean.exists()) {
                 if (!bMove)
-                    tempReturn = tempReturn + "\n- " + getNiceName(path) + " not found";
+                    tempReturn = tempReturn + "\n- " + getNiceName(sd.sourcePath) + " not found";
             }
             else {
-                tempReturn = tempReturn + "\n- " + getNiceName(path) + " " + s_scanDirectoryFiles(dirToClean, days, bMove);
+                tempReturn = tempReturn + "\n- " + getNiceName(sd.sourcePath) + " " + s_scanDirectoryFiles(dirToClean, sd.destFolder,days, bMove);
             }
         }
 
@@ -299,7 +321,7 @@ public class InternalFileEnumerator {
                 File dirToClean = new File(path);
                 if (dirToClean == null) continue;
                 if (!dirToClean.exists()) sReturn = sReturn + "\n- " + getNiceName(path) + " not found";
-                else sReturn = sReturn + "\n- " + getNiceName(path) + " " + s_scanDirectoryFiles(dirToClean, days, false);
+                else sReturn = sReturn + "\n- " + getNiceName(path) + " " + s_scanDirectoryFiles(dirToClean, "", days, false);
             }
 
             // obnovime, chceme dale pracovat jen s tim, co budeme fakt mazat
