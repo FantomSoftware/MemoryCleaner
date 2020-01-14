@@ -8,7 +8,6 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.storage.StorageManager;
 import android.os.storage.StorageVolume;
 import android.support.annotation.Nullable;
@@ -16,7 +15,6 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
-import android.support.v4.provider.DocumentFile;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -26,17 +24,14 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.List;
 
 public class MainScrollingActivity extends AppCompatActivity {
 
-    private InternalFileEnumerator ife = new InternalFileEnumerator();
+    private InternalFileEnumerator ife = new InternalFileEnumerator(true); // true = TEST AND NO DELETE! / false = DELETE ORIGINAL => RELEASE VERSION!
     private int PERMISSION_ALL = 1;
     private String[] PERMISSIONS = {android.Manifest.permission.READ_EXTERNAL_STORAGE, android.Manifest.permission.WRITE_EXTERNAL_STORAGE};
+    private Uri uriSD = null;
 
     protected boolean hasPermissions() {
         boolean perm = true;
@@ -106,15 +101,20 @@ public class MainScrollingActivity extends AppCompatActivity {
                                 takeCardUriPermission(ife.SDPATH);
                                 Uri uri = getUri();
                                 if (uri!=null) {
-                                    scrollingTV.append("Checked... Let's start to move!\n");
-                                    String ret = ife.moveFilesBySAF(getApplicationContext(), uri);
-                                    scrollingTV.append(ret);
+                                    scrollingTV.append("Checked... Let's start to move!\nPLEASE WAIT AND NOT IT TURN OFF TILL FINISHED!\n");
+                                    uriSD = uri;
+                                    new AsyncMoveTask().execute();
+                                    //String ret = ife.moveFilesBySAF(getApplicationContext(), uri);
+                                    //scrollingTV.append(ret);
                                     return;
                                 }
 
+                                scrollingTV.setText("Grant permission to SD Card please and run it again.\n\nIf you don't see any dialog for permission:\nYour Android phone is not fully supported!\nSorry, you can use it only for analysis...");
+                                return;
+
                                 // backup for older phones = legacy
-                                scrollingTV.append("API issue - probably older Android.\nSwitching to compatibility mode...\n");
-                                new AsyncMoveTask().execute();
+                                //scrollingTV.append("API issue - probably older Android.\nSwitching to compatibility mode...\n");
+                                //new AsyncMoveTask().execute();
                             }
                         }
                 ).show();
@@ -168,13 +168,14 @@ public class MainScrollingActivity extends AppCompatActivity {
 
     protected class AsyncMoveTask extends AsyncTask<Integer, Void, String> {
         @Override protected String doInBackground(Integer... params) {
-            return ife.moveLegacyFiles();
+            //return ife.moveLegacyFiles();
+            if (uriSD != null) return ife.moveFilesBySAF(getApplicationContext(), uriSD);
+            return "\nINTERNAL ERROR!";
         }
 
         @Override protected void onPostExecute(String result) {
-            FloatingActionButton fapprove = (FloatingActionButton)findViewById(R.id.fapprove);
             TextView scrollingTV = (TextView)findViewById(R.id.mainScrollingTextview);
-            scrollingTV.setText(result);
+            scrollingTV.append(result+"\n\n- FINISHED - ");
         }
     } // AsyncMoveTask
 
@@ -222,37 +223,6 @@ public class MainScrollingActivity extends AppCompatActivity {
         }
         return null;
     } // getUri
-
-    private String copyFileSAF(String inputPath, String inputFile, Uri treeUri) {
-        InputStream in = null;
-        OutputStream out = null;
-        String error = null;
-        DocumentFile pickedDir = DocumentFile.fromTreeUri(MainScrollingActivity.this, treeUri);
-        String extension = inputFile.substring(inputFile.lastIndexOf(".")+1,inputFile.length());
-
-        try {
-            DocumentFile newFile = pickedDir.createFile("audio/"+extension, inputFile);
-            out = MainScrollingActivity.this.getContentResolver().openOutputStream(newFile.getUri());
-            in = new FileInputStream(inputPath + inputFile);
-
-            byte[] buffer = new byte[1024];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-            in.close();
-            // write the output file (You have now copied the file)
-            out.flush();
-            out.close();
-
-        } catch (FileNotFoundException fnfe1) {
-            error = fnfe1.getMessage();
-        } catch (Exception e) {
-            error = e.getMessage();
-        }
-        return error;
-    } // copyFileSAF
-
 }
 
 // Poznamky:

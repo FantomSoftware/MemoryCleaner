@@ -10,17 +10,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import android.os.StatFs;
 import android.provider.DocumentsContract;
 import android.support.v4.provider.DocumentFile;
-import android.util.Log;
 import android.webkit.MimeTypeMap;
 
-import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -30,6 +27,7 @@ public class InternalFileEnumerator {
     private long COUNT_TO_CLEAN = 0;
     public String SDPATH = "";
     private String sRetTrace = "";
+    private Boolean TESTNODELETE = false;
 
     public long getLastCountToClean() {
         return COUNT_TO_CLEAN;
@@ -64,8 +62,8 @@ public class InternalFileEnumerator {
             Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/"
     };
 
-    public InternalFileEnumerator() {
-
+    public InternalFileEnumerator(Boolean testNoDelete) {
+        TESTNODELETE = testNoDelete; // for testing use TRUE => not delete any data! And use different ONE destination folder (for easy cleaning)
     } // InternalFileEnumerator
 
     public boolean readyToMove() {
@@ -73,73 +71,6 @@ public class InternalFileEnumerator {
 
         return false;
     } // readyToMove
-
-    private boolean moveFileLegacy(File src, File dst) {
-        FileChannel inChannel = null;
-        FileChannel outChannel = null;
-        boolean result = false;
-        try {
-            // TODO set the origin last usage date on the new file?
-            // TODO add the delete action
-            if (!dst.exists()) {
-                boolean b = dst.mkdirs();
-                if (!b) sRetTrace = sRetTrace + "\n Error: Create dir " + dst.getAbsolutePath();
-            }
-            File dstFile = new File(getUniqueFileLegacy(dst.getAbsolutePath(), src.getName()));
-            if (dstFile.createNewFile()) {
-                inChannel = new FileInputStream(src).getChannel();
-                outChannel = new FileOutputStream(dstFile).getChannel();
-                inChannel.transferTo(0, inChannel.size(), outChannel);
-                result = true;
-            }
-        }
-        catch (Exception e) {
-            result = false;
-            sRetTrace = sRetTrace + "\n Error: Move file " + src.getName();
-            e.printStackTrace();
-        }
-        finally
-        {
-            if (inChannel != null) {
-                try {
-                    inChannel.close();
-                }
-                catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-
-            if (outChannel != null) {
-                try {
-                    outChannel.close();
-                }
-                catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-        return result;
-    } // moveFileLegacy
-
-    private String getUniqueFileLegacy(String path, String filename) {
-        boolean unique = false;
-
-        String s = path;
-        if (!path.endsWith("/")) s  = s +"/";
-
-        int counter = 1;
-        int splitindex = filename.lastIndexOf(".");
-        if (splitindex<1) splitindex = filename.length()-1;
-        String suffix = filename.substring(splitindex);
-        while (!unique) {
-            File f = new File(s+filename);
-            if (!f.exists()) unique = true;
-            else {
-                filename = filename.substring(0,splitindex) + "_" + counter++ + suffix;
-            }
-        }
-        return filename;
-    } // getUniqueFileLegacy
 
     private String getUniqueFileSAF(DocumentFile path, String filename) {
         boolean unique = path.findFile(filename)==null;
@@ -201,24 +132,6 @@ public class InternalFileEnumerator {
         }
     } // isMediaAvailable
 
-    // move file by basic external storage access (need to be granted access before)
-    public String moveLegacyFiles() {
-        if (SDPATH == null || SDPATH.length()==0) return "\nError: SD-CARD PATH";
-        if (fileResult == null || fileResult.isEmpty()) return "\nInfo: Nothing to move!";
-
-        sRetTrace = "";
-
-        for (FileQueue fg: fileResult) {
-            for (File f: fg.fileList) {
-                if (!moveFileLegacy(f, new File(SDPATH + "/" + fg.sDestPath))) {
-                    return sRetTrace + "\nError:  Copy file " + f.getName();
-                }
-            }
-        }
-
-        return sRetTrace;
-    } // moveLegacyFiles
-
     // move file to Uri destination by Storage Access Framework (need to be granted access before)
     private Boolean moveFileSAF(Context context, Uri uri, File src) {
         Boolean ret = false;
@@ -240,7 +153,12 @@ public class InternalFileEnumerator {
             fos.flush();
             fos.close(); pfd.close();
             source.close();
-            // TODO DELETE
+            if (TESTNODELETE) {
+                sRetTrace = sRetTrace + "\nWould delete original, but test only.";
+            } else {
+                // release with deleting original
+                src.delete();
+            }
             ret = true;
         } catch (FileNotFoundException e) {
             e.printStackTrace();
@@ -418,6 +336,9 @@ public class InternalFileEnumerator {
             return "ERROR: SD-CARD NOT FOUND OR READ ONLY!";
         } else {
             SDPATH = sdPath;
+            // TEST WITHOUT SD CARD:
+            // SDPATH = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS).getAbsolutePath();
+            // sReturn = sReturn + "\nTarget storage: " + SDPATH + "\n";
         }
 
         if (days>0)
@@ -434,7 +355,9 @@ public class InternalFileEnumerator {
                 tempReturn = tempReturn + "\n- " + getNiceName(sd.sourcePath) + " not found";
             }
             else {
-                tempReturn = tempReturn + "\n- " + getNiceName(sd.sourcePath) + " " + s_scanDirectoryFiles(dirToClean, sd.destFolder,days);
+                String dest = sd.destFolder;
+                if (TESTNODELETE) dest = "MEMCLEANER_COPY_TEMP";
+                tempReturn = tempReturn + "\n- " + getNiceName(sd.sourcePath) + " " + s_scanDirectoryFiles(dirToClean, dest, days);
             }
         }
 
