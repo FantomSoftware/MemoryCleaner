@@ -92,30 +92,29 @@ public class MainScrollingActivity extends AppCompatActivity {
                             @Override
                             public void onClick(View view) {
                                 // Start to clean (moving, deleting, ...) --- let the last user approve before???
+                                TextView scrollingTV = (TextView) findViewById(R.id.mainScrollingTextview);
                                 FloatingActionButton fapprove = (FloatingActionButton)findViewById(R.id.fapprove);
-                                NumberPicker daysPicker = (NumberPicker)findViewById(R.id.daysNumberPicker);
-                                int days = daysPicker.getValue();
                                 fapprove.setVisibility(View.GONE);
-                                if (ife.SDPATH.length()>0 && ife.fileResult.size()>0) {
-                                    takeCardUriPermission(ife.SDPATH);
-                                    Uri uri = getUri();
-                                    if (uri!=null) {
-                                        TextView scrollingTV = (TextView) findViewById(R.id.mainScrollingTextview);
-                                        scrollingTV.setText("\nURI " + uri.toString() + "\n");
-                                        DocumentFile pickedDir = DocumentFile.fromTreeUri(MainScrollingActivity.this, uri);
-                                        pickedDir.createDirectory("TestXXX"); // TODO DOKONCIT
 
-                                        /*
-                                        for(InternalFileEnumerator.FileQueue fq : ife.fileResult) {
-                                            for (File f: fq.fileList) {
-                                                //String result = copyFileSAF(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath() + "/Camera/", "IMG_20191122_170231.jpg", uri)
-                                            }
-                                        }
-                                        */
-                                        return;
-                                    }
+                                scrollingTV.setText("");
+
+                                if (!ife.readyToMove()) {
+                                    scrollingTV.append("\nError: NOTHING TO MOVE OR SD CARD ERROR!"); // TODO RESOURCE
+                                    return;
                                 }
-                                new AsyncMoveTask().execute(days); // TODO MAZAT
+
+                                takeCardUriPermission(ife.SDPATH);
+                                Uri uri = getUri();
+                                if (uri!=null) {
+                                    scrollingTV.append("Checked... Let's start to move!\n");
+                                    String ret = ife.moveFilesBySAF(getApplicationContext(), uri);
+                                    scrollingTV.append(ret);
+                                    return;
+                                }
+
+                                // backup for older phones = legacy
+                                scrollingTV.append("API issue - probably older Android.\nSwitching to compatibility mode...\n");
+                                new AsyncMoveTask().execute();
                             }
                         }
                 ).show();
@@ -153,7 +152,7 @@ public class MainScrollingActivity extends AppCompatActivity {
     protected class AsyncAnalyseTask extends AsyncTask<Integer, Void, String> {
         @Override protected String doInBackground(Integer... params) {
             int days = params[0];
-            return ife.scanMemoryForOld(getApplicationContext(), days, false);
+            return ife.scanMemoryForOld(getApplicationContext(), days);
         }
 
         @Override protected void onPostExecute(String result) {
@@ -169,8 +168,7 @@ public class MainScrollingActivity extends AppCompatActivity {
 
     protected class AsyncMoveTask extends AsyncTask<Integer, Void, String> {
         @Override protected String doInBackground(Integer... params) {
-            int days = params[0];
-            return ife.scanMemoryForOld(getApplicationContext(), days, true);
+            return ife.moveLegacyFiles();
         }
 
         @Override protected void onPostExecute(String result) {

@@ -1,26 +1,35 @@
 package com.twicebiz.memorycleaner;
 
 import android.content.Context;
+import android.net.Uri;
 import android.os.Environment;
+import android.os.ParcelFileDescriptor;
 import android.os.storage.StorageManager;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import android.os.StatFs;
+import android.provider.DocumentsContract;
+import android.support.v4.provider.DocumentFile;
 import android.util.Log;
+import android.webkit.MimeTypeMap;
 
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 
 public class InternalFileEnumerator {
     private long LENGTH_TO_CLEAN = 0;
     private long COUNT_TO_CLEAN = 0;
     public String SDPATH = "";
+    private String sRetTrace = "";
 
     public long getLastCountToClean() {
         return COUNT_TO_CLEAN;
@@ -31,21 +40,21 @@ public class InternalFileEnumerator {
         ArrayList<File> fileList = new ArrayList<File>();
     }
 
-    public ArrayList<FileQueue> fileResult = new ArrayList<FileQueue>();
+    private ArrayList<FileQueue> fileResult = new ArrayList<FileQueue>();
 
     private class SourceDestPath {
         String destFolder;
         String sourcePath;
         SourceDestPath(String d, String s) {destFolder = d; sourcePath = s;}
-    }
+    } // SourceDestPath
 
     private SourceDestPath[] cleaningPaths = {
-        new SourceDestPath("Camera", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath() + "/Camera/"),
-        new SourceDestPath("Pictures", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).getAbsolutePath()+""),
-        new SourceDestPath("WhatsApp", Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Images"),
-        new SourceDestPath("WhatsApp", Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Video"),
-        new SourceDestPath("WhatsApp", Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/WhatsApp Images"),
-        new SourceDestPath("WhatsApp", Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/WhatsApp Video")
+            new SourceDestPath("Camera", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath() + "/Camera/"),
+            new SourceDestPath("Pictures", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).getAbsolutePath()+""),
+            new SourceDestPath("WhatsApp", Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Images"),
+            new SourceDestPath("WhatsApp", Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Video"),
+            new SourceDestPath("WhatsApp", Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/WhatsApp Images"),
+            new SourceDestPath("WhatsApp", Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/WhatsApp Video")
     };
     private String[] warningPaths = {
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath(),
@@ -57,21 +66,26 @@ public class InternalFileEnumerator {
 
     public InternalFileEnumerator() {
 
-    }
+    } // InternalFileEnumerator
 
-    protected boolean safeMoveFile(File src, File dst) {
+    public boolean readyToMove() {
+        if (fileResult != null && fileResult.size() > 0 && SDPATH.length()>0) return true;
+
+        return false;
+    } // readyToMove
+
+    private boolean moveFileLegacy(File src, File dst) {
         FileChannel inChannel = null;
         FileChannel outChannel = null;
         boolean result = false;
         try {
             // TODO set the origin last usage date on the new file?
             // TODO add the delete action
-            Log.d("safeMoveFile", src.getAbsolutePath() +" > "+ dst.getAbsolutePath());
             if (!dst.exists()) {
                 boolean b = dst.mkdirs();
-                if (!b) Log.d("safeMoveFile", "Cannot create a dir!!! " + dst.getAbsolutePath());
+                if (!b) sRetTrace = sRetTrace + "\n Error: Create dir " + dst.getAbsolutePath();
             }
-            File dstFile = new File(getUniqueFile(dst.getAbsolutePath()+"/"+src.getName()));
+            File dstFile = new File(getUniqueFileLegacy(dst.getAbsolutePath(), src.getName()));
             if (dstFile.createNewFile()) {
                 inChannel = new FileInputStream(src).getChannel();
                 outChannel = new FileOutputStream(dstFile).getChannel();
@@ -81,6 +95,7 @@ public class InternalFileEnumerator {
         }
         catch (Exception e) {
             result = false;
+            sRetTrace = sRetTrace + "\n Error: Move file " + src.getName();
             e.printStackTrace();
         }
         finally
@@ -104,23 +119,43 @@ public class InternalFileEnumerator {
             }
         }
         return result;
-    } // safeMoveFile
+    } // moveFileLegacy
 
-    private String getUniqueFile(String s) {
+    private String getUniqueFileLegacy(String path, String filename) {
         boolean unique = false;
+
+        String s = path;
+        if (!path.endsWith("/")) s  = s +"/";
+
         int counter = 1;
-        int splitindex = s.lastIndexOf(".");
-        if (splitindex<1) splitindex = s.length()-1;
-        String suffix = s.substring(splitindex);
+        int splitindex = filename.lastIndexOf(".");
+        if (splitindex<1) splitindex = filename.length()-1;
+        String suffix = filename.substring(splitindex);
         while (!unique) {
-            File f = new File(s);
+            File f = new File(s+filename);
             if (!f.exists()) unique = true;
             else {
-                s = s.substring(0,splitindex-1) + "_" + counter++ + suffix;
+                filename = filename.substring(0,splitindex) + "_" + counter++ + suffix;
             }
         }
-        return s;
-    }
+        return filename;
+    } // getUniqueFileLegacy
+
+    private String getUniqueFileSAF(DocumentFile path, String filename) {
+        boolean unique = path.findFile(filename)==null;
+        if (unique) return filename; // mostly unique, so quick return
+
+        String fname = filename;
+        int counter = 1;
+        int splitindex = fname.lastIndexOf(".");
+        if (splitindex<1) splitindex = fname.length()-1;
+        String suffix = fname.substring(splitindex);
+        while (!unique) {
+            fname = fname.substring(0,splitindex) + "_" + counter++ + suffix;
+            unique = path.findFile(fname)==null;
+        }
+        return fname;
+    } // getUniqueFileSAF
 
     /**
      * Get external sd card path using reflection - manage by is_removable variable if is external storage removable = SD card
@@ -166,7 +201,114 @@ public class InternalFileEnumerator {
         }
     } // isMediaAvailable
 
-    private String s_scanDirectoryFiles(File path, String dest, int days, boolean bMove) {
+    // move file by basic external storage access (need to be granted access before)
+    public String moveLegacyFiles() {
+        if (SDPATH == null || SDPATH.length()==0) return "\nError: SD-CARD PATH";
+        if (fileResult == null || fileResult.isEmpty()) return "\nInfo: Nothing to move!";
+
+        sRetTrace = "";
+
+        for (FileQueue fg: fileResult) {
+            for (File f: fg.fileList) {
+                if (!moveFileLegacy(f, new File(SDPATH + "/" + fg.sDestPath))) {
+                    return sRetTrace + "\nError:  Copy file " + f.getName();
+                }
+            }
+        }
+
+        return sRetTrace;
+    } // moveLegacyFiles
+
+    // move file to Uri destination by Storage Access Framework (need to be granted access before)
+    private Boolean moveFileSAF(Context context, Uri uri, File src) {
+        Boolean ret = false;
+        try{
+            ParcelFileDescriptor pfd = context.getContentResolver().openFileDescriptor(uri, "wa");
+            FileOutputStream fos = new FileOutputStream(pfd.getFileDescriptor());
+            FileInputStream source = new FileInputStream(src.getAbsoluteFile());
+
+            byte[] buffer = new byte[4096];
+            int read = 0;
+            while ((read = source.read(buffer)) != -1) {
+                if (buffer.length == read) fos.write(buffer);
+                else {
+                    byte[] buffer2 = new byte[read];
+                    buffer2 = Arrays.copyOf(buffer, read);
+                    fos.write(buffer2);
+                }
+            }
+            fos.flush();
+            fos.close(); pfd.close();
+            source.close();
+            // TODO DELETE
+            ret = true;
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            sRetTrace = sRetTrace + "\nError: Copy file error - " + e.getMessage();
+        } catch (Exception e) {
+            e.printStackTrace();
+            sRetTrace = sRetTrace + "\nError: Copy file error - " + e.getMessage();
+        }
+        return ret;
+    } // moveFileSAF
+
+    String getMimeType(File f) {
+        int dot = f.getName().lastIndexOf(".");
+        if( dot != -1) {
+            MimeTypeMap mime = MimeTypeMap.getSingleton();
+            return mime.getMimeTypeFromExtension(f.getName().substring(dot+1));
+        } else {
+            return null;
+        }
+    } // getMimeType
+
+    // move file by storage access framework (need to be granted before)
+    public String moveFilesBySAF(Context context, Uri uriSD) {
+        if (SDPATH == null || SDPATH.length()==0) return "\nError: SD-CARD PATH";
+        if (fileResult == null || fileResult.isEmpty()) return "\nInfo: Nothing to move!";
+
+        sRetTrace = "";
+
+        try {
+            for (FileQueue fg: fileResult) {
+                String id = DocumentsContract.getTreeDocumentId(uriSD);
+                String subPath = id + "/" + fg.sDestPath;
+
+                File dir = new File(SDPATH + "/" + fg.sDestPath);
+                sRetTrace = sRetTrace + "\n> Moving to " + dir;
+                DocumentFile newDir = null;
+                if (!dir.exists()) {
+                    sRetTrace = sRetTrace + "\nDir not exist. Creating it.";
+                    DocumentFile pickedDir = DocumentFile.fromTreeUri(context, uriSD);
+                    newDir = pickedDir.createDirectory(fg.sDestPath);
+                } else {
+                    //newDir = DocumentFile.fromFile(dir);
+                    DocumentFile pickedDir = DocumentFile.fromTreeUri(context, uriSD);
+                    newDir = pickedDir.findFile(fg.sDestPath);
+                }
+                if (newDir == null) {
+                    return sRetTrace + "\nError: Open directory " + dir.getAbsolutePath();
+                }
+
+                for (File f : fg.fileList) {
+                    String uqFile = getUniqueFileSAF(newDir, f.getName());
+                    sRetTrace = sRetTrace + "\nMove file " + f.getName();
+                    DocumentFile newFile = newDir.createFile("image/jpg", uqFile);
+                    if (newFile == null) return sRetTrace = sRetTrace + "\nError: Create file " + uqFile;
+                    if (!moveFileSAF(context, newFile.getUri(), f)) {
+                        return sRetTrace + "\nError: Move file " + f.getName();
+                    } else sRetTrace = sRetTrace + "\n - File moved successful! (" + uqFile + ")";
+                }
+
+            }
+        } catch (Exception e) {
+            sRetTrace = sRetTrace + "\nError: Cannot move file - " + e.getMessage();
+        }
+
+        return sRetTrace;
+    } // moveLegacyFiles
+
+    private String s_scanDirectoryFiles(File path, String dest, int days) {
         long length = 0;
         long lengthToMove = 0;
         int countToClean = 0;
@@ -176,7 +318,7 @@ public class InternalFileEnumerator {
         if (path == null) return "";
         if (path.isFile()) return sizeFormat(path.length());
         if (path.listFiles() == null) return "";
-        if (bMove && (SDPATH==null || SDPATH.length()==0)) return "ERROR SD-CARD PATH";
+
 
         FileQueue fq = new FileQueue();
         fq.sDestPath = dest;
@@ -191,25 +333,18 @@ public class InternalFileEnumerator {
                     lengthToMove += len;
                     countToClean++;
                     fq.fileList.add(file);
-                    if (bMove) {
-                        // TODO must generate the proper save directory path!
-                        if (!safeMoveFile(file, new File(SDPATH+dest))) {
-                            ret = ret + "- ERROR COPY " + file.getName() + "\n";
-                        } else {
-                            lengthToMove = lengthToMove - len;
-                            countToClean--;
-                        }
-                    }
-                    //ret = ret + file.getName() + ": " + sizeFormat(len) + "\n";
+                    //sRetTrace = sRetTrace + file.getName() + ": " + sizeFormat(len) + "\n";
                 }
-                //ret = ret + file.getName() + ": " + sizeFormat(len) + " older: " + older + "\n";
+                //sRetTrace = sRetTrace + file.getName() + ": " + sizeFormat(len) + " older: " + older + "\n";
             }
             // NEJSME REKURZIVNI, TAKZE KDYZ DIR, TAK NEZANORUJEME!!!
         }
 
         if (count == 0) return "empty";
 
-        fileResult.add(fq);
+        if (dest != null && !dest.isEmpty()) {
+            fileResult.add(fq);
+        }
 
         LENGTH_TO_CLEAN += lengthToMove;
         COUNT_TO_CLEAN += countToClean;
@@ -263,16 +398,15 @@ public class InternalFileEnumerator {
      * Vsechny WhatsApp veci se presouvaji do SDKarta/WhatsApp
      * Vsechny Pictures se presouvaji do SDKarta/Pictures
      * Vsechny Fotky se presouvaji do SDKarta/DCIM/Camera
-     *
-     * Bacha na konflikty se jmeny, ktere se asi mohou vyskytnout, kdyz jsou predchozi soubory presunuty
      **/
 
     // https://stackoverflow.com/questions/30281890/list-the-files-in-download-directory-of-the-android-phone/35862041
-    public String scanMemoryForOld(Context context, int days, boolean bMove) {
+    public String scanMemoryForOld(Context context, int days) {
         String sReturn = "";
         LENGTH_TO_CLEAN = 0;
         COUNT_TO_CLEAN = 0;
 
+        sRetTrace = "";
         fileResult.clear();
 
         if (!isMediaAvailable()) {
@@ -284,8 +418,6 @@ public class InternalFileEnumerator {
             return "ERROR: SD-CARD NOT FOUND OR READ ONLY!";
         } else {
             SDPATH = sdPath;
-            // TODO for debugging use the internal DOCUMENTS directory, for release use SDPATH
-            //SDPATH = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS).getAbsolutePath();
         }
 
         if (days>0)
@@ -293,47 +425,43 @@ public class InternalFileEnumerator {
         else
             sReturn = sReturn + "Warning! Not recommended to used with keeping zero days set!\n\n";
 
-        if (bMove) sReturn = sReturn + "|| Cleaned: ";
-        else sReturn = sReturn + "|| Found to clean: ";
+        sReturn = sReturn + "|| Found to clean: ";
         String tempReturn = "";
         for (SourceDestPath sd: cleaningPaths) {
             File dirToClean = new File(sd.sourcePath);
             if (dirToClean == null) continue;
             if (!dirToClean.exists()) {
-                if (!bMove)
-                    tempReturn = tempReturn + "\n- " + getNiceName(sd.sourcePath) + " not found";
+                tempReturn = tempReturn + "\n- " + getNiceName(sd.sourcePath) + " not found";
             }
             else {
-                tempReturn = tempReturn + "\n- " + getNiceName(sd.sourcePath) + " " + s_scanDirectoryFiles(dirToClean, sd.destFolder,days, bMove);
+                tempReturn = tempReturn + "\n- " + getNiceName(sd.sourcePath) + " " + s_scanDirectoryFiles(dirToClean, sd.destFolder,days);
             }
         }
 
         sReturn = sReturn + sizeFormat(LENGTH_TO_CLEAN) + " / " + COUNT_TO_CLEAN + " items total \n";
         sReturn = sReturn + tempReturn;
 
-        if (!bMove) {
-            // zazalohujeme, protoze to bude ovlivneno analyzou cest, co se nebudou mazat
-            long LENGTH_TO_CLEAN_orig = LENGTH_TO_CLEAN;
-            long COUNT_TO_CLEAN_orig = COUNT_TO_CLEAN;
+        // zazalohujeme, protoze to bude ovlivneno analyzou cest, co se nebudou mazat
+        long LENGTH_TO_CLEAN_orig = LENGTH_TO_CLEAN;
+        long COUNT_TO_CLEAN_orig = COUNT_TO_CLEAN;
 
-            sReturn = sReturn + "\n\n|| Other analysis - ONLY FOR INFO!\n";
-            for (String path: warningPaths) {
-                File dirToClean = new File(path);
-                if (dirToClean == null) continue;
-                if (!dirToClean.exists()) sReturn = sReturn + "\n- " + getNiceName(path) + " not found";
-                else sReturn = sReturn + "\n- " + getNiceName(path) + " " + s_scanDirectoryFiles(dirToClean, "", days, false);
-            }
-
-            // obnovime, chceme dale pracovat jen s tim, co budeme fakt mazat
-            LENGTH_TO_CLEAN = LENGTH_TO_CLEAN_orig;
-            COUNT_TO_CLEAN = COUNT_TO_CLEAN_orig;
+        sReturn = sReturn + "\n\n|| Other analysis - ONLY FOR INFO!\n";
+        for (String path: warningPaths) {
+            File dirToClean = new File(path);
+            if (dirToClean == null) continue;
+            if (!dirToClean.exists()) sReturn = sReturn + "\n- " + getNiceName(path) + " not found";
+            else sReturn = sReturn + "\n- " + getNiceName(path) + " " + s_scanDirectoryFiles(dirToClean, "", days);
         }
+
+        // obnovime, chceme dale pracovat jen s tim, co budeme fakt mazat
+        LENGTH_TO_CLEAN = LENGTH_TO_CLEAN_orig;
+        COUNT_TO_CLEAN = COUNT_TO_CLEAN_orig;
 
         // https://stackoverflow.com/questions/3394765/how-to-check-available-space-on-android-device-on-sd-card
         long freeCard = getSDCardFreeSpace(sdPath);
         sReturn = sReturn + "\n\nSD-CARD found! Path = " + sdPath + "\n| free space " + sizeFormat(freeCard) + "\n";
 
-        return sReturn;
+        return sReturn + sRetTrace;
     } // scanMemoryForOld
 
     // https://stackoverflow.com/questions/3394765/how-to-check-available-space-on-android-device-on-sd-card
