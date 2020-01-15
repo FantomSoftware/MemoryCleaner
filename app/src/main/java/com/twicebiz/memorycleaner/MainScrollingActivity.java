@@ -19,6 +19,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.View;
+import android.widget.CheckBox;
 import android.widget.NumberPicker;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -88,6 +89,7 @@ public class MainScrollingActivity extends AppCompatActivity {
                             public void onClick(View view) {
                                 // Start to clean (moving, deleting, ...) --- let the last user approve before???
                                 TextView scrollingTV = (TextView) findViewById(R.id.mainScrollingTextview);
+                                CheckBox testmodeCB = (CheckBox) findViewById(R.id.testModeCB);
                                 FloatingActionButton fapprove = (FloatingActionButton)findViewById(R.id.fapprove);
                                 fapprove.setVisibility(View.GONE);
 
@@ -101,9 +103,12 @@ public class MainScrollingActivity extends AppCompatActivity {
                                 takeCardUriPermission(ife.SDPATH);
                                 Uri uri = getUri();
                                 if (uri!=null) {
-                                    scrollingTV.append("Checked... Let's start to move!\nPLEASE WAIT AND NOT IT TURN OFF TILL FINISHED!\n");
+                                    if (testmodeCB.isChecked()) scrollingTV.append("Running in TEST MODE - not moving, just copying into "+ife.copyTestFolder+" folder!\nPLEASE WAIT AND NOT IT TURN OFF TILL FINISHED!\n");
+                                    else scrollingTV.append("Checked... Let's start to move!\nPLEASE WAIT AND NOT IT TURN OFF TILL FINISHED!\n");
                                     uriSD = uri;
-                                    new AsyncMoveTask().execute();
+                                    int testMode = 0;
+                                    if (testmodeCB.isChecked()) testMode = 1;
+                                    new AsyncMoveTask().execute(testMode);
                                     //String ret = ife.moveFilesBySAF(getApplicationContext(), uri);
                                     //scrollingTV.append(ret);
                                     return;
@@ -158,8 +163,10 @@ public class MainScrollingActivity extends AppCompatActivity {
         @Override protected void onPostExecute(String result) {
             FloatingActionButton fapprove = (FloatingActionButton)findViewById(R.id.fapprove);
             TextView scrollingTV = (TextView)findViewById(R.id.mainScrollingTextview);
+            CheckBox testmodeCB = (CheckBox) findViewById(R.id.testModeCB);
+            if (testmodeCB.isChecked()) result = result + "\n\nRUNNING IN TEST MODE!\nNot move, just copy files to demo folder on SD Card: " + ife.copyTestFolder + "\n";
             scrollingTV.setText(result);
-            if (!result.startsWith("ERROR:")) {
+            if (ife.bLastrunSuccess) {
                 if (ife.getLastCountToClean()>0)
                     fapprove.setVisibility(View.VISIBLE);
             }
@@ -169,7 +176,9 @@ public class MainScrollingActivity extends AppCompatActivity {
     protected class AsyncMoveTask extends AsyncTask<Integer, Void, String> {
         @Override protected String doInBackground(Integer... params) {
             //return ife.moveLegacyFiles();
-            if (uriSD != null) return ife.moveFilesBySAF(getApplicationContext(), uriSD);
+            int testMode = params[0];
+            Boolean bTestMode = (testMode > 0);
+            if (uriSD != null) return ife.moveFilesBySAF(getApplicationContext(), uriSD, bTestMode);
             return "\nINTERNAL ERROR!";
         }
 

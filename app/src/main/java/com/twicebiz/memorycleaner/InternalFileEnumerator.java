@@ -28,6 +28,8 @@ public class InternalFileEnumerator {
     public String SDPATH = "";
     private String sRetTrace = "";
     private Boolean TESTNODELETE = false;
+    public String copyTestFolder = "MEMCLEANER_COPY_TEMP";
+    public Boolean bLastrunSuccess = false;
 
     public long getLastCountToClean() {
         return COUNT_TO_CLEAN;
@@ -181,7 +183,9 @@ public class InternalFileEnumerator {
     } // getMimeType
 
     // move file by storage access framework (need to be granted before)
-    public String moveFilesBySAF(Context context, Uri uriSD) {
+    public String moveFilesBySAF(Context context, Uri uriSD, Boolean bTestmode) {
+        bLastrunSuccess = false;
+        TESTNODELETE = bTestmode;
         if (SDPATH == null || SDPATH.length()==0) return "\nError: SD-CARD PATH";
         if (fileResult == null || fileResult.isEmpty()) return "\nInfo: Nothing to move!";
 
@@ -190,19 +194,21 @@ public class InternalFileEnumerator {
         try {
             for (FileQueue fg: fileResult) {
                 String id = DocumentsContract.getTreeDocumentId(uriSD);
-                String subPath = id + "/" + fg.sDestPath;
+                String destFolder = fg.sDestPath;
+                if (TESTNODELETE) destFolder = copyTestFolder;
+                String subPath = id + "/" + destFolder;
 
-                File dir = new File(SDPATH + "/" + fg.sDestPath);
+                File dir = new File(SDPATH + "/" + destFolder);
                 sRetTrace = sRetTrace + "\n> Moving to " + dir;
                 DocumentFile newDir = null;
                 if (!dir.exists()) {
                     sRetTrace = sRetTrace + "\nDir not exist. Creating it.";
                     DocumentFile pickedDir = DocumentFile.fromTreeUri(context, uriSD);
-                    newDir = pickedDir.createDirectory(fg.sDestPath);
+                    newDir = pickedDir.createDirectory(destFolder);
                 } else {
                     //newDir = DocumentFile.fromFile(dir);
                     DocumentFile pickedDir = DocumentFile.fromTreeUri(context, uriSD);
-                    newDir = pickedDir.findFile(fg.sDestPath);
+                    newDir = pickedDir.findFile(destFolder);
                 }
                 if (newDir == null) {
                     return sRetTrace + "\nError: Open directory " + dir.getAbsolutePath();
@@ -217,7 +223,7 @@ public class InternalFileEnumerator {
                         return sRetTrace + "\nError: Move file " + f.getName();
                     } else sRetTrace = sRetTrace + "\n - File moved successful! (" + uqFile + ")";
                 }
-
+                bLastrunSuccess = true;
             }
         } catch (Exception e) {
             sRetTrace = sRetTrace + "\nError: Cannot move file - " + e.getMessage();
@@ -326,6 +332,7 @@ public class InternalFileEnumerator {
 
         sRetTrace = "";
         fileResult.clear();
+        bLastrunSuccess = false;
 
         if (!isMediaAvailable()) {
             return "ERROR: ACCESS MEMORY ERROR!";
@@ -356,7 +363,6 @@ public class InternalFileEnumerator {
             }
             else {
                 String dest = sd.destFolder;
-                if (TESTNODELETE) dest = "MEMCLEANER_COPY_TEMP";
                 tempReturn = tempReturn + "\n- " + getNiceName(sd.sourcePath) + " " + s_scanDirectoryFiles(dirToClean, dest, days);
             }
         }
@@ -383,6 +389,8 @@ public class InternalFileEnumerator {
         // https://stackoverflow.com/questions/3394765/how-to-check-available-space-on-android-device-on-sd-card
         long freeCard = getSDCardFreeSpace(sdPath);
         sReturn = sReturn + "\n\nSD-CARD found! Path = " + sdPath + "\n| free space " + sizeFormat(freeCard) + "\n";
+
+        bLastrunSuccess = true;
 
         return sReturn + sRetTrace;
     } // scanMemoryForOld
