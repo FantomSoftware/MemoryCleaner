@@ -19,6 +19,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.CheckBox;
 import android.widget.NumberPicker;
 import android.widget.TextView;
@@ -33,6 +34,7 @@ public class MainScrollingActivity extends AppCompatActivity {
     private int PERMISSION_ALL = 1;
     private String[] PERMISSIONS = {android.Manifest.permission.READ_EXTERNAL_STORAGE, android.Manifest.permission.WRITE_EXTERNAL_STORAGE};
     private Uri uriSD = null;
+    private int COPY_COUNT_SETS = 5; // count of files to copy in one step
 
     protected boolean hasPermissions() {
         boolean perm = true;
@@ -108,6 +110,7 @@ public class MainScrollingActivity extends AppCompatActivity {
                                     uriSD = uri;
                                     int testMode = 0;
                                     if (testmodeCB.isChecked()) testMode = 1;
+                                    getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                                     new AsyncMoveTask().execute(testMode);
                                     //String ret = ife.moveFilesBySAF(getApplicationContext(), uri);
                                     //scrollingTV.append(ret);
@@ -145,6 +148,7 @@ public class MainScrollingActivity extends AppCompatActivity {
 
                 scrollingTV.setText(R.string.Analysing);
 
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                 new AsyncAnalyseTask().execute(days);
             }
         }); // fab.setOnClickListener
@@ -170,6 +174,7 @@ public class MainScrollingActivity extends AppCompatActivity {
                 if (ife.getLastCountToClean()>0)
                     fapprove.setVisibility(View.VISIBLE);
             }
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         }
     } // AsyncAnalyseTask
 
@@ -178,13 +183,22 @@ public class MainScrollingActivity extends AppCompatActivity {
             //return ife.moveLegacyFiles();
             int testMode = params[0];
             Boolean bTestMode = (testMode > 0);
-            if (uriSD != null) return ife.moveFilesBySAF(getApplicationContext(), uriSD, bTestMode);
+            if (uriSD != null) return ife.moveFilesBySAF(getApplicationContext(), uriSD, COPY_COUNT_SETS, bTestMode);
             return "\nINTERNAL ERROR!";
         }
 
         @Override protected void onPostExecute(String result) {
             TextView scrollingTV = (TextView)findViewById(R.id.mainScrollingTextview);
-            scrollingTV.append(result+"\n\n- FINISHED - ");
+            CheckBox testmodeCB = (CheckBox) findViewById(R.id.testModeCB);
+            int testMode = 0;
+            if (testmodeCB.isChecked()) testMode = 1;
+            if (ife.readyToMove()) {
+                scrollingTV.append(result);
+                new AsyncMoveTask().execute(testMode);
+            } else {
+                scrollingTV.append(result + "\n\n -- FINISHED -- ");
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            }
         }
     } // AsyncMoveTask
 

@@ -25,6 +25,7 @@ import java.util.Date;
 public class InternalFileEnumerator {
     private long LENGTH_TO_CLEAN = 0;
     private long COUNT_TO_CLEAN = 0;
+    private long COUNT_CLEANED = 0;
     public String SDPATH = "";
     private String sRetTrace = "";
     private Boolean TESTNODELETE = false;
@@ -69,7 +70,7 @@ public class InternalFileEnumerator {
     } // InternalFileEnumerator
 
     public boolean readyToMove() {
-        if (fileResult != null && fileResult.size() > 0 && SDPATH.length()>0) return true;
+        if (fileResult != null && fileResult.size() > 0 && SDPATH.length()>0 && (COUNT_TO_CLEAN-COUNT_CLEANED)>0 ) return true;
 
         return false;
     } // readyToMove
@@ -155,9 +156,7 @@ public class InternalFileEnumerator {
             fos.flush();
             fos.close(); pfd.close();
             source.close();
-            if (TESTNODELETE) {
-                sRetTrace = sRetTrace + "\nWould delete original, but test only.";
-            } else {
+            if (!TESTNODELETE) {
                 // release with deleting original
                 src.delete();
             }
@@ -183,13 +182,18 @@ public class InternalFileEnumerator {
     } // getMimeType
 
     // move file by storage access framework (need to be granted before)
-    public String moveFilesBySAF(Context context, Uri uriSD, Boolean bTestmode) {
+    // countLimit - limit of max number of files to clean, 0 = unlimited
+    // countLimit serves together with COUNT_CLEAND to moved by sets of files
+    public String moveFilesBySAF(Context context, Uri uriSD, long countLimit, Boolean bTestmode) {
         bLastrunSuccess = false;
         TESTNODELETE = bTestmode;
         if (SDPATH == null || SDPATH.length()==0) return "\nError: SD-CARD PATH";
         if (fileResult == null || fileResult.isEmpty()) return "\nInfo: Nothing to move!";
 
         sRetTrace = "";
+        long iItems = 0;
+        long iNewCleaned = 0;
+        if (countLimit == 0) countLimit = COUNT_TO_CLEAN;
 
         try {
             for (FileQueue fg: fileResult) {
@@ -215,16 +219,28 @@ public class InternalFileEnumerator {
                 }
 
                 for (File f : fg.fileList) {
-                    String uqFile = getUniqueFileSAF(newDir, f.getName());
-                    sRetTrace = sRetTrace + "\nMove file " + f.getName();
-                    DocumentFile newFile = newDir.createFile("image/jpg", uqFile);
-                    if (newFile == null) return sRetTrace = sRetTrace + "\nError: Create file " + uqFile;
-                    if (!moveFileSAF(context, newFile.getUri(), f)) {
-                        return sRetTrace + "\nError: Move file " + f.getName();
-                    } else sRetTrace = sRetTrace + "\n - File moved successful! (" + uqFile + ")";
+                    if (iNewCleaned >= countLimit) {
+                        bLastrunSuccess = true;
+                        return sRetTrace;
+                    }
+                    if (iItems >= COUNT_CLEANED) {
+                        String uqFile = getUniqueFileSAF(newDir, f.getName());
+                        sRetTrace = sRetTrace + "\nMove file " + f.getName() + " ("+(COUNT_CLEANED+1)+"/"+COUNT_TO_CLEAN+")";
+                        DocumentFile newFile = newDir.createFile("image/jpg", uqFile);
+                        if (newFile == null)
+                            return sRetTrace = sRetTrace + "\nError: Create file " + uqFile;
+                        if (!moveFileSAF(context, newFile.getUri(), f)) {
+                            return sRetTrace + "\nError: Move file " + f.getName();
+                        }
+                        sRetTrace = sRetTrace + "\n - Success! (" + uqFile + ")";
+                        COUNT_CLEANED++;
+                        iNewCleaned++;
+                    }
+                    iItems++;
                 }
-                bLastrunSuccess = true;
+
             }
+            bLastrunSuccess = true;
         } catch (Exception e) {
             sRetTrace = sRetTrace + "\nError: Cannot move file - " + e.getMessage();
         }
@@ -333,6 +349,7 @@ public class InternalFileEnumerator {
         sRetTrace = "";
         fileResult.clear();
         bLastrunSuccess = false;
+        COUNT_CLEANED = 0;
 
         if (!isMediaAvailable()) {
             return "ERROR: ACCESS MEMORY ERROR!";
